@@ -1,0 +1,19 @@
+workflows:
+  android-debug:
+    name: PlayLivre Android
+    environment:
+      flutter: stable
+    scripts:
+      - name: Preparar plataformas Flutter
+        script: |
+          if [ ! -d android ]; then
+            flutter create --platforms=android .
+          fi
+      - name: Instalar dependências
+        script: flutter pub get
+      - name: Analisar projeto
+        script: flutter analyze
+      - name: Gerar APK de teste
+        script: flutter build apk --debug
+    artifacts:
+      - build/app/outputs/flutter-apk/app-debug.apk
