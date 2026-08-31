@@ -1,20 +1,30 @@
 workflows:
-  flutter:
-    name: PlayLivre Android APK
+  playlivre-android:
+    name: PlayLivre Android
 
     environment:
       flutter: stable
 
     scripts:
-      - name: Criar plataforma Android
+      - name: Verificar arquivos
+        script: |
+          pwd
+          ls -la
+
+      - name: Criar Android
         script: |
           flutter create --platforms=android .
+
+      - name: Verificar Android
+        script: |
+          ls -la
+          ls -la android
 
       - name: Instalar dependências
         script: |
           flutter pub get
 
-      - name: Compilar APK
+      - name: Gerar APK
         script: |
           flutter build apk --release
 
