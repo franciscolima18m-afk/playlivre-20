@@ -1,6 +1,6 @@
 workflows:
   flutter:
-    name: PlayLive Android Build
+    name: PlayLivre Android APK
 
     environment:
       flutter: stable
