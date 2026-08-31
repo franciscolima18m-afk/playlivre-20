@@ -6,9 +6,14 @@ workflows:
       flutter: stable
 
     scripts:
-      - name: Criar plataformas Flutter
+      - name: Criar projeto Android
         script: |
-          flutter create .
+          flutter create --platforms=android .
+
+      - name: Verificar pasta Android
+        script: |
+          ls -la
+          test -d android
 
       - name: Instalar dependências
         script: |
