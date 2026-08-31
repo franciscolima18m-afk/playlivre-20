@@ -1,21 +1,27 @@
 workflows:
   android-build:
     name: PlayLivre Android
-    max_build_duration: 60
 
     environment:
       flutter: stable
 
     scripts:
+      - name: Ver arquivos do projeto
+        script: |
+          pwd
+          ls -la
+
+      - name: Gerar plataforma Android
+        script: |
+          flutter create .
+          ls -la
+          ls -la android
+
       - name: Instalar dependências
         script: |
           flutter pub get
 
-      - name: Criar arquivos Android
-        script: |
-          flutter create --platforms=android .
-
-      - name: Compilar APK
+      - name: Gerar APK
         script: |
           flutter build apk --release
 
