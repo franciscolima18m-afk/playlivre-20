@@ -1,19 +1,14 @@
 workflows:
   flutter:
-    name: Flutter Build
+    name: PlayLive Android Build
 
     environment:
       flutter: stable
 
     scripts:
-      - name: Criar projeto Android
+      - name: Criar plataforma Android
         script: |
           flutter create --platforms=android .
-
-      - name: Verificar pasta Android
-        script: |
-          ls -la
-          test -d android
 
       - name: Instalar dependências
         script: |
@@ -22,3 +17,6 @@ workflows:
       - name: Compilar APK
         script: |
           flutter build apk --release
+
+    artifacts:
+      - build/app/outputs/flutter-apk/*.apk
