@@ -1,35 +1,32 @@
-FROM debian:bookworm-slim AS build
-
-RUN apt-get update && apt-get install -y \
-    curl \
-    git \
-    unzip \
-    xz-utils \
-    zip \
-    libglu1-mesa \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN git clone https://github.com/flutter/flutter.git \
-    -b stable \
-    --depth 1 \
-    /flutter
-
-ENV PATH="/flutter/bin:/flutter/bin/cache/dart-sdk/bin:${PATH}"
-
-RUN flutter config --enable-web
+# Etapa 1: compilar o Flutter
+FROM ghcr.io/cirruslabs/flutter:stable AS build
 
 WORKDIR /app
 
-COPY . .
+# Copiar os arquivos do projeto
+COPY pubspec.yaml pubspec.lock* ./
 
+# Baixar dependências
 RUN flutter pub get
 
+# Copiar o restante do aplicativo
+COPY . .
+
+# Compilar para Web
 RUN flutter build web --release
 
+
+# Etapa 2: servidor para o aplicativo
 FROM nginx:alpine
 
+# Remover página padrão do nginx
+RUN rm -rf /usr/share/nginx/html/*
+
+# Copiar aplicativo compilado
 COPY --from=build /app/build/web /usr/share/nginx/html
 
-EXPOSE 80
+# Configurar a porta do Render
+EXPOSE 10000
 
+# Iniciar servidor
 CMD ["nginx", "-g", "daemon off;"]
