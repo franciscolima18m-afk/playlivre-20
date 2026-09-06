@@ -232,6 +232,10 @@ class _PlayerPageState extends State<PlayerPage> {
     return null;
   }
 
+  String capaDaMusica(MusicVideo musica) {
+    return 'https://img.youtube.com/vi/${musica.videoId}/hqdefault.jpg';
+  }
+
   void tocarMusicaPorIndice(int indice) {
     if (indice < 0 || indice >= musicas.length) return;
 
@@ -382,6 +386,402 @@ class _PlayerPageState extends State<PlayerPage> {
     );
   }
 
+  Future<void> alternarFavorito(MusicVideo musica) async {
+    setState(() {
+      if (favoritos.contains(musica.videoId)) {
+        favoritos.remove(musica.videoId);
+      } else {
+        favoritos.add(musica.videoId);
+      }
+    });
+
+    await salvarDados();
+  }
+
+  @override
+  void dispose() {
+    _playerSubscription?.cancel();
+    controller.close();
+    pesquisaController.dispose();
+    super.dispose();
+  }
+
+    @override
+  Widget build(BuildContext context) {
+    final musica = musicas[musicaAtual];
+
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: const Color(0xff090909),
+        title: const Text(
+          'PlayLivre',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.red,
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: Badge(
+              isLabelVisible: fila.isNotEmpty,
+              label: Text('${fila.length}'),
+              child: const Icon(Icons.queue_music),
+            ),
+            tooltip: 'Fila de reprodução',
+            onPressed: abrirFila,
+          ),
+          IconButton(
+            icon: const Icon(Icons.playlist_play),
+            tooltip: 'Playlists',
+            onPressed: abrirPlaylists,
+          ),
+          IconButton(
+            icon: const Icon(Icons.add),
+            tooltip: 'Nova playlist',
+            onPressed: criarPlaylist,
+          ),
+        ],
+      ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(16),
+                children: [
+                  const Text(
+                    'Agora tocando',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white70,
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: YoutubePlayer(
+                      controller: controller,
+                      aspectRatio: 16 / 9,
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  Text(
+                    musica.titulo,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+
+                  const SizedBox(height: 5),
+
+                  Text(
+                    musica.artista,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      color: Colors.white60,
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        iconSize: 28,
+                        tooltip: 'Aleatório',
+                        onPressed: alternarAleatorio,
+                        icon: Icon(
+                          Icons.shuffle,
+                          color: modoAleatorio
+                              ? Colors.red
+                              : Colors.white70,
+                        ),
+                      ),
+                      IconButton(
+                        iconSize: 34,
+                        tooltip: 'Anterior',
+                        onPressed: musicaAnterior,
+                        icon: const Icon(Icons.skip_previous),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        iconSize: 48,
+                        tooltip: 'Play/Pause',
+                        onPressed: alternarPlayPause,
+                        icon: Icon(
+                          estaTocando
+                              ? Icons.pause_circle_filled
+                              : Icons.play_circle_fill,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        iconSize: 34,
+                        tooltip: 'Próxima',
+                        onPressed: proximaMusica,
+                        icon: const Icon(Icons.skip_next),
+                      ),
+                      IconButton(
+                        iconSize: 28,
+                        tooltip: 'Repetir',
+                        onPressed: alternarRepeticao,
+                        icon: Icon(
+                          Icons.repeat,
+                          color: repetirMusica
+                              ? Colors.red
+                              : Colors.white70,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 25),
+
+                  TextField(
+                    controller: pesquisaController,
+                    onChanged: (valor) {
+                      setState(() {
+                        pesquisa = valor;
+                      });
+                    },
+                    decoration: InputDecoration(
+                      hintText: 'Pesquisar músicas...',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: pesquisa.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                pesquisaController.clear();
+
+                                setState(() {
+                                  pesquisa = '';
+                                });
+                              },
+                            )
+                          : null,
+                      filled: true,
+                      fillColor: const Color(0xff181818),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 25),
+
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Músicas',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        '${musicasFiltradas.length} músicas',
+                        style: const TextStyle(
+                          color: Colors.white54,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  ...musicasFiltradas.map((item) {
+                    final indice = musicas.indexOf(item);
+                    final favorito =
+                        favoritos.contains(item.videoId);
+
+                    return Card(
+                      color: const Color(0xff181818),
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ListTile(
+                        leading: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            capaDaMusica(item),
+                            width: 48,
+                            height: 48,
+                            fit: BoxFit.cover,
+                            errorBuilder: (
+                              context,
+                              error,
+                              stackTrace,
+                            ) {
+                              return Container(
+                                width: 48,
+                                height: 48,
+                                color: Colors.red.shade900,
+                                child: const Icon(
+                                  Icons.music_note,
+                                  color: Colors.white,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                        title: Text(
+                          item.titulo,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Text(item.artista),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: Icon(
+                                favorito
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                                color: favorito
+                                    ? Colors.red
+                                    : Colors.white54,
+                              ),
+                              onPressed: () {
+                                alternarFavorito(item);
+                              },
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.playlist_add),
+                              color: Colors.white54,
+                              onPressed: () {
+                                adicionarNaPlaylist(item);
+                              },
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.queue_music),
+                              color: Colors.white54,
+                              onPressed: () {
+                                adicionarUmaMusicaNaFila(item);
+                              },
+                            ),
+                          ],
+                        ),
+                        onTap: () {
+                          tocarMusicaPorIndice(indice);
+                        },
+                      ),
+                    );
+                  }),
+
+                  const SizedBox(height: 20),
+
+                  const Text(
+                    'Toque no vídeo para iniciar o áudio.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white54,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // MINI PLAYER
+            if (musica.videoId.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: const BoxDecoration(
+                  color: Color(0xff181818),
+                  border: Border(
+                    top: BorderSide(
+                      color: Colors.white12,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        capaDaMusica(musica),
+                        width: 48,
+                        height: 48,
+                        fit: BoxFit.cover,
+                        errorBuilder: (
+                          context,
+                          error,
+                          stackTrace,
+                        ) {
+                          return Container(
+                            width: 48,
+                            height: 48,
+                            color: Colors.red.shade900,
+                            child: const Icon(
+                              Icons.music_note,
+                              color: Colors.white,
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+
+                    const SizedBox(width: 12),
+
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment:
+                            CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            musica.titulo,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            musica.artista,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white60,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    IconButton(
+                      icon: Icon(
+                        estaTocando
+                            ? Icons.pause
+                            : Icons.play_arrow,
+                      ),
+                      onPressed: alternarPlayPause,
+                    ),
+
+                    IconButton(
+                      icon: const Icon(Icons.skip_next),
+                      onPressed: proximaMusica,
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
   void abrirFila() {
     showModalBottomSheet(
       context: context,
@@ -420,9 +820,15 @@ class _PlayerPageState extends State<PlayerPage> {
                               final musica = musicas[fila[index]];
 
                               return ListTile(
-                                leading: const Icon(
-                                  Icons.music_note,
-                                  color: Colors.red,
+                                leading: ClipRRect(
+                                  borderRadius:
+                                      BorderRadius.circular(8),
+                                  child: Image.network(
+                                    capaDaMusica(musica),
+                                    width: 48,
+                                    height: 48,
+                                    fit: BoxFit.cover,
+                                  ),
                                 ),
                                 title: Text(musica.titulo),
                                 subtitle: Text(musica.artista),
@@ -464,18 +870,6 @@ class _PlayerPageState extends State<PlayerPage> {
         );
       },
     );
-  }
-
-  Future<void> alternarFavorito(MusicVideo musica) async {
-    setState(() {
-      if (favoritos.contains(musica.videoId)) {
-        favoritos.remove(musica.videoId);
-      } else {
-        favoritos.add(musica.videoId);
-      }
-    });
-
-    await salvarDados();
   }
 
   Future<void> criarPlaylist() async {
@@ -590,285 +984,6 @@ class _PlayerPageState extends State<PlayerPage> {
     setState(() {});
   }
 
-  @override
-  void dispose() {
-    _playerSubscription?.cancel();
-    controller.close();
-    pesquisaController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final musica = musicas[musicaAtual];
-
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: const Color(0xff090909),
-        title: const Text(
-          'PlayLivre',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.red,
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: Badge(
-              isLabelVisible: fila.isNotEmpty,
-              label: Text('${fila.length}'),
-              child: const Icon(Icons.queue_music),
-            ),
-            tooltip: 'Fila de reprodução',
-            onPressed: abrirFila,
-          ),
-          IconButton(
-            icon: const Icon(Icons.playlist_play),
-            tooltip: 'Playlists',
-            onPressed: abrirPlaylists,
-          ),
-          IconButton(
-            icon: const Icon(Icons.add),
-            tooltip: 'Nova playlist',
-            onPressed: criarPlaylist,
-          ),
-        ],
-      ),
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            const Text(
-              'Agora tocando',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.white70,
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: YoutubePlayer(
-                controller: controller,
-                aspectRatio: 16 / 9,
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            Text(
-              musica.titulo,
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-
-            const SizedBox(height: 5),
-
-            Text(
-              musica.artista,
-              style: const TextStyle(
-                fontSize: 15,
-                color: Colors.white60,
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(
-                  iconSize: 28,
-                  tooltip: 'Aleatório',
-                  onPressed: alternarAleatorio,
-                  icon: Icon(
-                    Icons.shuffle,
-                    color: modoAleatorio
-                        ? Colors.red
-                        : Colors.white70,
-                  ),
-                ),
-                IconButton(
-                  iconSize: 34,
-                  tooltip: 'Anterior',
-                  onPressed: musicaAnterior,
-                  icon: const Icon(Icons.skip_previous),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  iconSize: 48,
-                  tooltip: 'Play/Pause',
-                  onPressed: alternarPlayPause,
-                  icon: Icon(
-                    estaTocando
-                        ? Icons.pause_circle_filled
-                        : Icons.play_circle_fill,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  iconSize: 34,
-                  tooltip: 'Próxima',
-                  onPressed: proximaMusica,
-                  icon: const Icon(Icons.skip_next),
-                ),
-                IconButton(
-                  iconSize: 28,
-                  tooltip: 'Repetir',
-                  onPressed: alternarRepeticao,
-                  icon: Icon(
-                    Icons.repeat,
-                    color: repetirMusica
-                        ? Colors.red
-                        : Colors.white70,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 25),
-
-            TextField(
-              controller: pesquisaController,
-              onChanged: (valor) {
-                setState(() {
-                  pesquisa = valor;
-                });
-              },
-              decoration: InputDecoration(
-                hintText: 'Pesquisar músicas...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: pesquisa.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          pesquisaController.clear();
-
-                          setState(() {
-                            pesquisa = '';
-                          });
-                        },
-                      )
-                    : null,
-                filled: true,
-                fillColor: const Color(0xff181818),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 25),
-
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Músicas',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  '${musicasFiltradas.length} músicas',
-                  style: const TextStyle(
-                    color: Colors.white54,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 10),
-
-            ...musicasFiltradas.map((item) {
-              final indice = musicas.indexOf(item);
-              final favorito =
-                  favoritos.contains(item.videoId);
-
-              return Card(
-                color: const Color(0xff181818),
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  leading: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade900,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.music_note,
-                      color: Colors.white,
-                    ),
-                  ),
-                  title: Text(
-                    item.titulo,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: Text(item.artista),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: Icon(
-                          favorito
-                              ? Icons.favorite
-                              : Icons.favorite_border,
-                          color: favorito
-                              ? Colors.red
-                              : Colors.white54,
-                        ),
-                        onPressed: () {
-                          alternarFavorito(item);
-                        },
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.playlist_add),
-                        color: Colors.white54,
-                        onPressed: () {
-                          adicionarNaPlaylist(item);
-                        },
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.queue_music),
-                        color: Colors.white54,
-                        onPressed: () {
-                          adicionarUmaMusicaNaFila(item);
-                        },
-                      ),
-                    ],
-                  ),
-                  onTap: () {
-                    tocarMusicaPorIndice(indice);
-                  },
-                ),
-              );
-            }),
-
-            const SizedBox(height: 20),
-
-            const Text(
-              'Toque no vídeo para iniciar o áudio.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white54,
-                fontSize: 13,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class PlaylistPage extends StatefulWidget {
   final Map<String, List<String>> playlists;
   final MusicVideo? Function(String) encontrarMusica;
@@ -972,11 +1087,6 @@ class _PlaylistPageState extends State<PlaylistPage> {
               children: widget.playlists.keys.map((nome) {
                 final lista = widget.playlists[nome]!;
 
-                final musicasDaPlaylist = lista
-                    .map(widget.encontrarMusica)
-                    .whereType<MusicVideo>()
-                    .toList();
-
                 return Card(
                   color: const Color(0xff181818),
                   margin: const EdgeInsets.only(bottom: 12),
@@ -1019,28 +1129,26 @@ class _PlaylistPageState extends State<PlaylistPage> {
                       return ListTile(
                         title: Text(musica.titulo),
                         subtitle: Text(musica.artista),
-                        leading: const Icon(
-                          Icons.music_note,
-                          color: Colors.red,
+                        leading: ClipRRect(
+                          borderRadius:
+                              BorderRadius.circular(8),
+                          child: Image.network(
+                            'https://img.youtube.com/vi/'
+                            '${musica.videoId}/hqdefault.jpg',
+                            width: 48,
+                            height: 48,
+                            fit: BoxFit.cover,
+                          ),
                         ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.close),
-                              tooltip: 'Remover',
-                              onPressed: () {
-                                removerMusicaDaPlaylist(
-                                  nome,
-                                  videoId,
-                                );
-                              },
-                            ),
-                            const Icon(
-                              Icons.play_arrow,
-                              color: Colors.red,
-                            ),
-                          ],
+                        trailing: IconButton(
+                          icon: const Icon(Icons.close),
+                          tooltip: 'Remover',
+                          onPressed: () {
+                            removerMusicaDaPlaylist(
+                              nome,
+                              videoId,
+                            );
+                          },
                         ),
                         onTap: () {
                           widget.tocarMusica(videoId);
