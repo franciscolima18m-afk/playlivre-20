@@ -69,7 +69,6 @@ class _PlayerPageState extends State<PlayerPage> {
         showFullscreenButton: true,
         showVideoAnnotations: false,
         strictRelatedVideos: true,
-        privacyEnhancedMode: true,
         mute: false,
       ),
     );
@@ -179,15 +178,19 @@ class _PlayerPageState extends State<PlayerPage> {
                   onPressed: musicaAnterior,
                   icon: const Icon(Icons.skip_previous),
                 ),
+
                 const SizedBox(width: 18),
+
                 IconButton(
                   iconSize: 42,
                   onPressed: () {
-                    controller.play();
+                    controller.playVideo();
                   },
                   icon: const Icon(Icons.play_circle_fill),
                 ),
+
                 const SizedBox(width: 18),
+
                 IconButton(
                   iconSize: 34,
                   onPressed: proximaMusica,
