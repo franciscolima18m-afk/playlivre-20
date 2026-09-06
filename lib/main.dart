@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -44,52 +45,52 @@ class _PlayerPageState extends State<PlayerPage> {
       TextEditingController();
 
   final List<MusicVideo> musicas = [
-    MusicVideo(
+    const MusicVideo(
       titulo: 'Música de demonstração',
       artista: 'PlayLivre',
       videoId: 'dQw4w9WgXcQ',
     ),
-    MusicVideo(
+    const MusicVideo(
       titulo: 'Despacito',
       artista: 'Luis Fonsi',
       videoId: 'kJQP7kiw5Fk',
     ),
-    MusicVideo(
+    const MusicVideo(
       titulo: 'Gangnam Style',
       artista: 'PSY',
       videoId: '9bZkp7q19f0',
     ),
-    MusicVideo(
+    const MusicVideo(
       titulo: 'Shape of You',
       artista: 'Ed Sheeran',
       videoId: 'JGwWngGsE7g',
     ),
-    MusicVideo(
+    const MusicVideo(
       titulo: 'Believer',
       artista: 'Imagine Dragons',
       videoId: '7wtfhZwyrcc',
     ),
-    MusicVideo(
+    const MusicVideo(
       titulo: 'Counting Stars',
       artista: 'OneRepublic',
       videoId: 'hT_nvWreIhg',
     ),
-    MusicVideo(
+    const MusicVideo(
       titulo: 'Uptown Funk',
       artista: 'Mark Ronson',
       videoId: 'OPf0YbXqDm0',
     ),
-    MusicVideo(
+    const MusicVideo(
       titulo: 'Faded',
       artista: 'Alan Walker',
       videoId: '60ItHLz5WEA',
     ),
-    MusicVideo(
+    const MusicVideo(
       titulo: 'Numb',
       artista: 'Linkin Park',
       videoId: 'kXYiU_JCYtU',
     ),
-    MusicVideo(
+    const MusicVideo(
       titulo: 'Bohemian Rhapsody',
       artista: 'Queen',
       videoId: 'fJ9rUzIMcZQ',
@@ -101,6 +102,12 @@ class _PlayerPageState extends State<PlayerPage> {
 
   int musicaAtual = 0;
   String pesquisa = '';
+
+  bool estaTocando = false;
+  bool modoAleatorio = false;
+  bool repetirMusica = false;
+
+  final Random _random = Random();
 
   @override
   void initState() {
@@ -124,20 +131,27 @@ class _PlayerPageState extends State<PlayerPage> {
   Future<void> carregarDados() async {
     final prefs = await SharedPreferences.getInstance();
 
-    final favoritosSalvos = prefs.getStringList('favoritos') ?? [];
+    final favoritosSalvos =
+        prefs.getStringList('favoritos') ?? [];
 
     final playlistsSalvas = prefs.getString('playlists');
+
+    if (!mounted) return;
 
     setState(() {
       favoritos.addAll(favoritosSalvos);
 
       if (playlistsSalvas != null) {
-        final Map<String, dynamic> dados =
-            jsonDecode(playlistsSalvas);
+        try {
+          final Map<String, dynamic> dados =
+              jsonDecode(playlistsSalvas);
 
-        dados.forEach((nome, lista) {
-          playlists[nome] = List<String>.from(lista);
-        });
+          dados.forEach((nome, lista) {
+            playlists[nome] = List<String>.from(lista);
+          });
+        } catch (_) {
+          // Ignora dados antigos inválidos.
+        }
       }
     });
   }
@@ -179,24 +193,63 @@ class _PlayerPageState extends State<PlayerPage> {
     return null;
   }
 
-  void tocarMusica(int indice) {
+  void tocarMusicaPorIndice(int indice) {
+    if (indice < 0 || indice >= musicas.length) return;
+
     setState(() {
       musicaAtual = indice;
+      estaTocando = true;
     });
 
     controller.loadVideoById(
       videoId: musicas[indice].videoId,
     );
+
+    controller.playVideo();
+  }
+
+  void tocarMusica(String videoId) {
+    final indice = musicas.indexWhere(
+      (musica) => musica.videoId == videoId,
+    );
+
+    if (indice == -1) return;
+
+    tocarMusicaPorIndice(indice);
+  }
+
+  void alternarPlayPause() {
+    if (estaTocando) {
+      controller.pauseVideo();
+
+      setState(() {
+        estaTocando = false;
+      });
+    } else {
+      controller.playVideo();
+
+      setState(() {
+        estaTocando = true;
+      });
+    }
   }
 
   void proximaMusica() {
-    int proxima = musicaAtual + 1;
+    int proxima;
 
-    if (proxima >= musicas.length) {
-      proxima = 0;
+    if (modoAleatorio && musicas.length > 1) {
+      do {
+        proxima = _random.nextInt(musicas.length);
+      } while (proxima == musicaAtual);
+    } else {
+      proxima = musicaAtual + 1;
+
+      if (proxima >= musicas.length) {
+        proxima = 0;
+      }
     }
 
-    tocarMusica(proxima);
+    tocarMusicaPorIndice(proxima);
   }
 
   void musicaAnterior() {
@@ -206,7 +259,39 @@ class _PlayerPageState extends State<PlayerPage> {
       anterior = musicas.length - 1;
     }
 
-    tocarMusica(anterior);
+    tocarMusicaPorIndice(anterior);
+  }
+
+  void alternarAleatorio() {
+    setState(() {
+      modoAleatorio = !modoAleatorio;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          modoAleatorio
+              ? 'Modo aleatório ativado'
+              : 'Modo aleatório desativado',
+        ),
+      ),
+    );
+  }
+
+  void alternarRepeticao() {
+    setState(() {
+      repetirMusica = !repetirMusica;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          repetirMusica
+              ? 'Repetir música ativado'
+              : 'Repetir música desativado',
+        ),
+      ),
+    );
   }
 
   Future<void> alternarFavorito(MusicVideo musica) async {
@@ -261,11 +346,14 @@ class _PlayerPageState extends State<PlayerPage> {
     if (nome == null || nome.isEmpty) return;
 
     if (playlists.containsKey(nome)) {
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Essa playlist já existe.'),
         ),
       );
+
       return;
     }
 
@@ -306,6 +394,20 @@ class _PlayerPageState extends State<PlayerPage> {
       });
 
       await salvarDados();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Adicionada à playlist "$nome".'),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Essa música já está na playlist.'),
+        ),
+      );
     }
   }
 
@@ -410,23 +512,56 @@ class _PlayerPageState extends State<PlayerPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 IconButton(
+                  iconSize: 28,
+                  tooltip: 'Aleatório',
+                  onPressed: alternarAleatorio,
+                  icon: Icon(
+                    Icons.shuffle,
+                    color: modoAleatorio
+                        ? Colors.red
+                        : Colors.white70,
+                  ),
+                ),
+
+                IconButton(
                   iconSize: 34,
+                  tooltip: 'Anterior',
                   onPressed: musicaAnterior,
                   icon: const Icon(Icons.skip_previous),
                 ),
-                const SizedBox(width: 18),
+
+                const SizedBox(width: 8),
+
                 IconButton(
-                  iconSize: 42,
-                  onPressed: () {
-                    controller.playVideo();
-                  },
-                  icon: const Icon(Icons.play_circle_fill),
+                  iconSize: 48,
+                  tooltip: 'Play/Pause',
+                  onPressed: alternarPlayPause,
+                  icon: Icon(
+                    estaTocando
+                        ? Icons.pause_circle_filled
+                        : Icons.play_circle_fill,
+                  ),
                 ),
-                const SizedBox(width: 18),
+
+                const SizedBox(width: 8),
+
                 IconButton(
                   iconSize: 34,
+                  tooltip: 'Próxima',
                   onPressed: proximaMusica,
                   icon: const Icon(Icons.skip_next),
+                ),
+
+                IconButton(
+                  iconSize: 28,
+                  tooltip: 'Repetir',
+                  onPressed: alternarRepeticao,
+                  icon: Icon(
+                    Icons.repeat,
+                    color: repetirMusica
+                        ? Colors.red
+                        : Colors.white70,
+                  ),
                 ),
               ],
             ),
@@ -489,7 +624,8 @@ class _PlayerPageState extends State<PlayerPage> {
 
             ...musicasFiltradas.map((item) {
               final indice = musicas.indexOf(item);
-              final favorito = favoritos.contains(item.videoId);
+              final favorito =
+                  favoritos.contains(item.videoId);
 
               return Card(
                 color: const Color(0xff181818),
@@ -543,7 +679,7 @@ class _PlayerPageState extends State<PlayerPage> {
                     ],
                   ),
                   onTap: () {
-                    tocarMusica(indice);
+                    tocarMusicaPorIndice(indice);
                   },
                 ),
               );
@@ -569,7 +705,7 @@ class _PlayerPageState extends State<PlayerPage> {
 class PlaylistPage extends StatefulWidget {
   final Map<String, List<String>> playlists;
   final MusicVideo? Function(String) encontrarMusica;
-  final void Function(int) tocarMusica;
+  final void Function(String) tocarMusica;
   final Future<void> Function() salvarDados;
   final VoidCallback onPlaylistsChanged;
 
@@ -593,7 +729,9 @@ class _PlaylistPageState extends State<PlaylistPage> {
       builder: (context) {
         return AlertDialog(
           title: const Text('Excluir playlist?'),
-          content: Text('A playlist "$nome" será removida.'),
+          content: Text(
+            'A playlist "$nome" será removida.',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
@@ -645,7 +783,9 @@ class _PlaylistPageState extends State<PlaylistPage> {
                       color: Colors.red,
                     ),
                     title: Text(nome),
-                    subtitle: Text('${lista.length} músicas'),
+                    subtitle: Text(
+                      '${lista.length} músicas',
+                    ),
                     trailing: IconButton(
                       icon: const Icon(Icons.delete_outline),
                       onPressed: () {
@@ -653,7 +793,8 @@ class _PlaylistPageState extends State<PlaylistPage> {
                       },
                     ),
                     children: lista.map((videoId) {
-                      final musica = widget.encontrarMusica(videoId);
+                      final musica =
+                          widget.encontrarMusica(videoId);
 
                       if (musica == null) {
                         return const SizedBox.shrink();
@@ -666,9 +807,16 @@ class _PlaylistPageState extends State<PlaylistPage> {
                           Icons.music_note,
                           color: Colors.red,
                         ),
+                        trailing: const Icon(
+                          Icons.play_arrow,
+                          color: Colors.red,
+                        ),
                         onTap: () {
-                          final indice = lista.indexOf(videoId);
-                          widget.tocarMusica(indice);
+                          // Agora envia o ID correto,
+                          // e não o índice da playlist.
+                          widget.tocarMusica(videoId);
+
+                          Navigator.pop(context);
                         },
                       );
                     }).toList(),
