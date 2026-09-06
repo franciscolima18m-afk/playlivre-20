@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
 void main() {
@@ -94,6 +97,7 @@ class _PlayerPageState extends State<PlayerPage> {
   ];
 
   final Set<String> favoritos = {};
+  final Map<String, List<String>> playlists = {};
 
   int musicaAtual = 0;
   String pesquisa = '';
@@ -113,6 +117,43 @@ class _PlayerPageState extends State<PlayerPage> {
         mute: false,
       ),
     );
+
+    carregarDados();
+  }
+
+  Future<void> carregarDados() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    final favoritosSalvos = prefs.getStringList('favoritos') ?? [];
+
+    final playlistsSalvas = prefs.getString('playlists');
+
+    setState(() {
+      favoritos.addAll(favoritosSalvos);
+
+      if (playlistsSalvas != null) {
+        final Map<String, dynamic> dados =
+            jsonDecode(playlistsSalvas);
+
+        dados.forEach((nome, lista) {
+          playlists[nome] = List<String>.from(lista);
+        });
+      }
+    });
+  }
+
+  Future<void> salvarDados() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.setStringList(
+      'favoritos',
+      favoritos.toList(),
+    );
+
+    await prefs.setString(
+      'playlists',
+      jsonEncode(playlists),
+    );
   }
 
   List<MusicVideo> get musicasFiltradas {
@@ -126,6 +167,16 @@ class _PlayerPageState extends State<PlayerPage> {
       return musica.titulo.toLowerCase().contains(termo) ||
           musica.artista.toLowerCase().contains(termo);
     }).toList();
+  }
+
+  MusicVideo? encontrarMusica(String videoId) {
+    for (final musica in musicas) {
+      if (musica.videoId == videoId) {
+        return musica;
+      }
+    }
+
+    return null;
   }
 
   void tocarMusica(int indice) {
@@ -158,7 +209,7 @@ class _PlayerPageState extends State<PlayerPage> {
     tocarMusica(anterior);
   }
 
-  void alternarFavorito(MusicVideo musica) {
+  Future<void> alternarFavorito(MusicVideo musica) async {
     setState(() {
       if (favoritos.contains(musica.videoId)) {
         favoritos.remove(musica.videoId);
@@ -166,6 +217,115 @@ class _PlayerPageState extends State<PlayerPage> {
         favoritos.add(musica.videoId);
       }
     });
+
+    await salvarDados();
+  }
+
+  Future<void> criarPlaylist() async {
+    final nomeController = TextEditingController();
+
+    final nome = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Nova playlist'),
+          content: TextField(
+            controller: nomeController,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: 'Nome da playlist',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final nome = nomeController.text.trim();
+
+                if (nome.isNotEmpty) {
+                  Navigator.pop(context, nome);
+                }
+              },
+              child: const Text('Criar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    nomeController.dispose();
+
+    if (nome == null || nome.isEmpty) return;
+
+    if (playlists.containsKey(nome)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Essa playlist já existe.'),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      playlists[nome] = [];
+    });
+
+    await salvarDados();
+  }
+
+  Future<void> adicionarNaPlaylist(MusicVideo musica) async {
+    if (playlists.isEmpty) {
+      await criarPlaylist();
+    }
+
+    if (!mounted || playlists.isEmpty) return;
+
+    final nome = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return SimpleDialog(
+          title: const Text('Adicionar à playlist'),
+          children: playlists.keys.map((nome) {
+            return SimpleDialogOption(
+              onPressed: () => Navigator.pop(context, nome),
+              child: Text(nome),
+            );
+          }).toList(),
+        );
+      },
+    );
+
+    if (nome == null) return;
+
+    if (!playlists[nome]!.contains(musica.videoId)) {
+      setState(() {
+        playlists[nome]!.add(musica.videoId);
+      });
+
+      await salvarDados();
+    }
+  }
+
+  Future<void> abrirPlaylists() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PlaylistPage(
+          playlists: playlists,
+          encontrarMusica: encontrarMusica,
+          tocarMusica: tocarMusica,
+          salvarDados: salvarDados,
+          onPlaylistsChanged: () {
+            setState(() {});
+          },
+        ),
+      ),
+    );
+
+    setState(() {});
   }
 
   @override
@@ -189,6 +349,18 @@ class _PlayerPageState extends State<PlayerPage> {
             color: Colors.red,
           ),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.playlist_play),
+            tooltip: 'Playlists',
+            onPressed: abrirPlaylists,
+          ),
+          IconButton(
+            icon: const Icon(Icons.add),
+            tooltip: 'Nova playlist',
+            onPressed: criarPlaylist,
+          ),
+        ],
       ),
       body: SafeArea(
         child: ListView(
@@ -261,7 +433,6 @@ class _PlayerPageState extends State<PlayerPage> {
 
             const SizedBox(height: 25),
 
-            // BARRA DE PESQUISA
             TextField(
               controller: pesquisaController,
               onChanged: (valor) {
@@ -277,6 +448,7 @@ class _PlayerPageState extends State<PlayerPage> {
                         icon: const Icon(Icons.clear),
                         onPressed: () {
                           pesquisaController.clear();
+
                           setState(() {
                             pesquisa = '';
                           });
@@ -315,30 +487,8 @@ class _PlayerPageState extends State<PlayerPage> {
 
             const SizedBox(height: 10),
 
-            if (musicasFiltradas.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(30),
-                child: Column(
-                  children: [
-                    Icon(
-                      Icons.music_off,
-                      size: 50,
-                      color: Colors.white38,
-                    ),
-                    SizedBox(height: 12),
-                    Text(
-                      'Nenhuma música encontrada',
-                      style: TextStyle(
-                        color: Colors.white60,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
             ...musicasFiltradas.map((item) {
               final indice = musicas.indexOf(item);
-              final estaTocando = musicaAtual == indice;
               final favorito = favoritos.contains(item.videoId);
 
               return Card(
@@ -379,10 +529,15 @@ class _PlayerPageState extends State<PlayerPage> {
                           alternarFavorito(item);
                         },
                       ),
-                      Icon(
-                        estaTocando
-                            ? Icons.equalizer
-                            : Icons.play_arrow,
+                      IconButton(
+                        icon: const Icon(Icons.playlist_add),
+                        color: Colors.white54,
+                        onPressed: () {
+                          adicionarNaPlaylist(item);
+                        },
+                      ),
+                      const Icon(
+                        Icons.play_arrow,
                         color: Colors.red,
                       ),
                     ],
@@ -407,6 +562,120 @@ class _PlayerPageState extends State<PlayerPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class PlaylistPage extends StatefulWidget {
+  final Map<String, List<String>> playlists;
+  final MusicVideo? Function(String) encontrarMusica;
+  final void Function(int) tocarMusica;
+  final Future<void> Function() salvarDados;
+  final VoidCallback onPlaylistsChanged;
+
+  const PlaylistPage({
+    super.key,
+    required this.playlists,
+    required this.encontrarMusica,
+    required this.tocarMusica,
+    required this.salvarDados,
+    required this.onPlaylistsChanged,
+  });
+
+  @override
+  State<PlaylistPage> createState() => _PlaylistPageState();
+}
+
+class _PlaylistPageState extends State<PlaylistPage> {
+  Future<void> excluirPlaylist(String nome) async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Excluir playlist?'),
+          content: Text('A playlist "$nome" será removida.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Excluir'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmar != true) return;
+
+    setState(() {
+      widget.playlists.remove(nome);
+    });
+
+    await widget.salvarDados();
+    widget.onPlaylistsChanged();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Minhas playlists'),
+      ),
+      body: widget.playlists.isEmpty
+          ? const Center(
+              child: Text(
+                'Nenhuma playlist criada.',
+                style: TextStyle(color: Colors.white60),
+              ),
+            )
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: widget.playlists.keys.map((nome) {
+                final lista = widget.playlists[nome]!;
+
+                return Card(
+                  color: const Color(0xff181818),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  child: ExpansionTile(
+                    leading: const Icon(
+                      Icons.queue_music,
+                      color: Colors.red,
+                    ),
+                    title: Text(nome),
+                    subtitle: Text('${lista.length} músicas'),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: () {
+                        excluirPlaylist(nome);
+                      },
+                    ),
+                    children: lista.map((videoId) {
+                      final musica = widget.encontrarMusica(videoId);
+
+                      if (musica == null) {
+                        return const SizedBox.shrink();
+                      }
+
+                      return ListTile(
+                        title: Text(musica.titulo),
+                        subtitle: Text(musica.artista),
+                        leading: const Icon(
+                          Icons.music_note,
+                          color: Colors.red,
+                        ),
+                        onTap: () {
+                          final indice = lista.indexOf(videoId);
+                          widget.tocarMusica(indice);
+                        },
+                      );
+                    }).toList(),
+                  ),
+                );
+              }).toList(),
+            ),
     );
   }
 }
