@@ -3,29 +3,32 @@ FROM ghcr.io/cirruslabs/flutter:stable AS build
 
 WORKDIR /app
 
-# Copiar os arquivos do projeto
+# Copiar arquivos de dependências
 COPY pubspec.yaml pubspec.lock* ./
 
 # Baixar dependências
 RUN flutter pub get
 
-# Copiar o restante do aplicativo
+# Copiar o restante do projeto
 COPY . .
 
 # Compilar para Web
 RUN flutter build web --release
 
 
-# Etapa 2: servidor para o aplicativo
+# Etapa 2: servidor
 FROM nginx:alpine
 
-# Remover página padrão do nginx
+# Remover página padrão
 RUN rm -rf /usr/share/nginx/html/*
 
 # Copiar aplicativo compilado
 COPY --from=build /app/build/web /usr/share/nginx/html
 
-# Configurar a porta do Render
+# Configuração do Nginx
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Porta do Render
 EXPOSE 10000
 
 # Iniciar servidor
