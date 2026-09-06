@@ -398,15 +398,221 @@ class _PlayerPageState extends State<PlayerPage> {
     await salvarDados();
   }
 
-  @override
-  void dispose() {
-    _playerSubscription?.cancel();
-    controller.close();
-    pesquisaController.dispose();
-    super.dispose();
+  // =========================================================
+  // FILA DE REPRODUÇÃO
+  // =========================================================
+
+  void abrirFila() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xff181818),
+      isScrollControlled: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, atualizarModal) {
+            return SizedBox(
+              height: 450,
+              child: Column(
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.all(16),
+                    child: Text(
+                      'Fila de reprodução',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: fila.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'A fila está vazia.',
+                              style: TextStyle(
+                                color: Colors.white60,
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            itemCount: fila.length,
+                            itemBuilder: (context, index) {
+                              final musica = musicas[fila[index]];
+
+                              return ListTile(
+                                leading: ClipRRect(
+                                  borderRadius:
+                                      BorderRadius.circular(8),
+                                  child: Image.network(
+                                    capaDaMusica(musica),
+                                    width: 48,
+                                    height: 48,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ),
+                                title: Text(musica.titulo),
+                                subtitle: Text(musica.artista),
+                                trailing: IconButton(
+                                  icon: const Icon(Icons.close),
+                                  onPressed: () {
+                                    setState(() {
+                                      fila.removeAt(index);
+                                      filaAtiva = fila.isNotEmpty;
+                                    });
+
+                                    atualizarModal(() {});
+                                  },
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                  if (fila.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            fila.clear();
+                            filaAtiva = false;
+                          });
+
+                          Navigator.pop(context);
+                        },
+                        icon: const Icon(Icons.delete_sweep),
+                        label: const Text('Limpar fila'),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
-    @override
+  // =========================================================
+  // PLAYLISTS
+  // =========================================================
+
+  Future<void> criarPlaylist() async {
+    final nomeController = TextEditingController();
+
+    final nome = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Nova playlist'),
+          content: TextField(
+            controller: nomeController,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: 'Nome da playlist',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final nome = nomeController.text.trim();
+
+                if (nome.isNotEmpty) {
+                  Navigator.pop(context, nome);
+                }
+              },
+              child: const Text('Criar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    nomeController.dispose();
+
+    if (nome == null || nome.isEmpty) return;
+
+    if (playlists.containsKey(nome)) {
+      mostrarMensagem('Essa playlist já existe.');
+      return;
+    }
+
+    setState(() {
+      playlists[nome] = [];
+    });
+
+    await salvarDados();
+  }
+
+  Future<void> adicionarNaPlaylist(MusicVideo musica) async {
+    if (playlists.isEmpty) {
+      await criarPlaylist();
+    }
+
+    if (!mounted || playlists.isEmpty) return;
+
+    final nome = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return SimpleDialog(
+          title: const Text('Adicionar à playlist'),
+          children: playlists.keys.map((nome) {
+            return SimpleDialogOption(
+              onPressed: () => Navigator.pop(context, nome),
+              child: Text(nome),
+            );
+          }).toList(),
+        );
+      },
+    );
+
+    if (nome == null) return;
+
+    if (!playlists[nome]!.contains(musica.videoId)) {
+      setState(() {
+        playlists[nome]!.add(musica.videoId);
+      });
+
+      await salvarDados();
+
+      mostrarMensagem(
+        'Adicionada à playlist "$nome".',
+      );
+    } else {
+      mostrarMensagem(
+        'Essa música já está na playlist.',
+      );
+    }
+  }
+
+  Future<void> abrirPlaylists() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PlaylistPage(
+          playlists: playlists,
+          encontrarMusica: encontrarMusica,
+          tocarMusica: tocarMusica,
+          adicionarFila: adicionarFila,
+          salvarDados: salvarDados,
+          onPlaylistsChanged: () {
+            setState(() {});
+          },
+        ),
+      ),
+    );
+
+    setState(() {});
+  }
+
+  // =========================================================
+  // INTERFACE PRINCIPAL
+  // =========================================================
+
+  @override
   Widget build(BuildContext context) {
     final musica = musicas[musicaAtual];
 
@@ -780,209 +986,19 @@ class _PlayerPageState extends State<PlayerPage> {
       ),
     );
   }
+
+  @override
+  void dispose() {
+    _playerSubscription?.cancel();
+    controller.close();
+    pesquisaController.dispose();
+    super.dispose();
+  }
 }
 
-  void abrirFila() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xff181818),
-      isScrollControlled: true,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, atualizarModal) {
-            return SizedBox(
-              height: 450,
-              child: Column(
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: Text(
-                      'Fila de reprodução',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: fila.isEmpty
-                        ? const Center(
-                            child: Text(
-                              'A fila está vazia.',
-                              style: TextStyle(
-                                color: Colors.white60,
-                              ),
-                            ),
-                          )
-                        : ListView.builder(
-                            itemCount: fila.length,
-                            itemBuilder: (context, index) {
-                              final musica = musicas[fila[index]];
-
-                              return ListTile(
-                                leading: ClipRRect(
-                                  borderRadius:
-                                      BorderRadius.circular(8),
-                                  child: Image.network(
-                                    capaDaMusica(musica),
-                                    width: 48,
-                                    height: 48,
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                                title: Text(musica.titulo),
-                                subtitle: Text(musica.artista),
-                                trailing: IconButton(
-                                  icon: const Icon(Icons.close),
-                                  onPressed: () {
-                                    setState(() {
-                                      fila.removeAt(index);
-                                      filaAtiva = fila.isNotEmpty;
-                                    });
-
-                                    atualizarModal(() {});
-                                  },
-                                ),
-                              );
-                            },
-                          ),
-                  ),
-                  if (fila.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          setState(() {
-                            fila.clear();
-                            filaAtiva = false;
-                          });
-
-                          Navigator.pop(context);
-                        },
-                        icon: const Icon(Icons.delete_sweep),
-                        label: const Text('Limpar fila'),
-                      ),
-                    ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Future<void> criarPlaylist() async {
-    final nomeController = TextEditingController();
-
-    final nome = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Nova playlist'),
-          content: TextField(
-            controller: nomeController,
-            autofocus: true,
-            decoration: const InputDecoration(
-              hintText: 'Nome da playlist',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final nome = nomeController.text.trim();
-
-                if (nome.isNotEmpty) {
-                  Navigator.pop(context, nome);
-                }
-              },
-              child: const Text('Criar'),
-            ),
-          ],
-        );
-      },
-    );
-
-    nomeController.dispose();
-
-    if (nome == null || nome.isEmpty) return;
-
-    if (playlists.containsKey(nome)) {
-      mostrarMensagem('Essa playlist já existe.');
-      return;
-    }
-
-    setState(() {
-      playlists[nome] = [];
-    });
-
-    await salvarDados();
-  }
-
-  Future<void> adicionarNaPlaylist(MusicVideo musica) async {
-    if (playlists.isEmpty) {
-      await criarPlaylist();
-    }
-
-    if (!mounted || playlists.isEmpty) return;
-
-    final nome = await showDialog<String>(
-      context: context,
-      builder: (context) {
-        return SimpleDialog(
-          title: const Text('Adicionar à playlist'),
-          children: playlists.keys.map((nome) {
-            return SimpleDialogOption(
-              onPressed: () => Navigator.pop(context, nome),
-              child: Text(nome),
-            );
-          }).toList(),
-        );
-      },
-    );
-
-    if (nome == null) return;
-
-    if (!playlists[nome]!.contains(musica.videoId)) {
-      setState(() {
-        playlists[nome]!.add(musica.videoId);
-      });
-
-      await salvarDados();
-
-      mostrarMensagem(
-        'Adicionada à playlist "$nome".',
-      );
-    } else {
-      mostrarMensagem(
-        'Essa música já está na playlist.',
-      );
-    }
-  }
-
-  Future<void> abrirPlaylists() async {
-    await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => PlaylistPage(
-          playlists: playlists,
-          encontrarMusica: encontrarMusica,
-          tocarMusica: tocarMusica,
-          adicionarFila: adicionarFila,
-          salvarDados: salvarDados,
-          onPlaylistsChanged: () {
-            setState(() {});
-          },
-        ),
-      ),
-    );
-
-    setState(() {});
-  }
+// =========================================================
+// PÁGINA DE PLAYLISTS
+// =========================================================
 
 class PlaylistPage extends StatefulWidget {
   final Map<String, List<String>> playlists;
@@ -1163,6 +1179,10 @@ class _PlaylistPageState extends State<PlaylistPage> {
     );
   }
 }
+
+// =========================================================
+// MODELO DE MÚSICA
+// =========================================================
 
 class MusicVideo {
   final String titulo;
