@@ -1092,6 +1092,28 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
   bool modoAleatorio = false;
   bool repetirMusica = false;
 
+  Timer? _atualizacaoTimer;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _atualizacaoTimer = Timer.periodic(
+      const Duration(milliseconds: 500),
+      (timer) {
+        if (mounted) {
+          setState(() {});
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _atualizacaoTimer?.cancel();
+    super.dispose();
+  }
+  
   @override
   Widget build(BuildContext context) {
     final musica = widget.obterMusicaAtual();
