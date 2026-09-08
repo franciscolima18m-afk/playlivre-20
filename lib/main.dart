@@ -611,6 +611,8 @@ class _PlayerPageState extends State<PlayerPage> {
           return NowPlayingPage(
             obterMusicaAtual: () => musicas[musicaAtual],
             obterEstaTocando: () => estaTocando,
+            obterModoAleatorio: () => modoAleatorio,
+            obterRepetirMusica: () => repetirMusica,
             obterFavorito: () {
               return favoritos.contains(
                 musicas[musicaAtual].videoId,
@@ -1057,6 +1059,8 @@ class _PlayerPageState extends State<PlayerPage> {
 class NowPlayingPage extends StatefulWidget {
   final MusicVideo Function() obterMusicaAtual;
   final bool Function() obterEstaTocando;
+  final bool Function() obterModoAleatorio;
+  final bool Function() obterRepetirMusica;
   final bool Function() obterFavorito;
 
   final String Function(MusicVideo) capaDaMusica;
@@ -1073,6 +1077,8 @@ class NowPlayingPage extends StatefulWidget {
     super.key,
     required this.obterMusicaAtual,
     required this.obterEstaTocando,
+    required this.obterModoAleatorio,
+    required this.obterRepetirMusica,
     required this.obterFavorito,
     required this.capaDaMusica,
     required this.onPlayPause,
@@ -1089,8 +1095,8 @@ class NowPlayingPage extends StatefulWidget {
 }
 
 class _NowPlayingPageState extends State<NowPlayingPage> {
-  bool modoAleatorio = false;
-  bool repetirMusica = false;
+  bool get modoAleatorio => widget.obterModoAleatorio();
+  bool get repetirMusica => widget.obterRepetirMusica();
 
   Timer? _atualizacaoTimer;
 
@@ -1208,10 +1214,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                     iconSize: 28,
                     onPressed: () {
                       widget.onAleatorio();
-
-                      setState(() {
-                        modoAleatorio = !modoAleatorio;
-                      });
+                      setState(() {});
                     },
                     icon: Icon(
                       Icons.shuffle,
@@ -1225,10 +1228,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                     iconSize: 28,
                     onPressed: () {
                       widget.onRepeticao();
-
-                      setState(() {
-                        repetirMusica = !repetirMusica;
-                      });
+                      setState(() {});
                     },
                     icon: Icon(
                       Icons.repeat,
